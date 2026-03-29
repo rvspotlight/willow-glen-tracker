@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Willow Glen — Unit Certification Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Source+Sans+3:wght@300;400;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green-dark: #1E4620;
+      --green-mid: #2E7D32;
+      --green-light: #4CAF50;
+      --teal-dark: #00494C;
+      --teal-mid: #00796B;
+      --teal-light: #26A69A;
+      --purple-dark: #4A148C;
+      --purple-mid: #7B1FA2;
+      --cream: #F5F2EC;
+      --text: #1a1a1a;
+      --text-muted: #666;
+      --border: #ddd;
+    }
+
+    body {
+      font-family: 'Source Sans 3', sans-serif;
+      background: var(--cream);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, var(--green-dark) 0%, var(--teal-dark) 50%, var(--purple-dark) 100%);
+      padding: 36px 48px;
+      color: white;
+      position: relative;
+      overflow: hidden;
+    }
+    header::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--green-light), var(--teal-light), var(--purple-mid));
+    }
+    .header-eyebrow {
+      font-size: 11px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #a5d6a7;
+      margin-bottom: 8px;
+      font-weight: 300;
+    }
+    header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    header p {
+      font-size: 14px;
+      color: #b2dfdb;
+      margin-top: 6px;
+      font-weight: 300;
+    }
+
+    main {
+      max-width: 800px;
+      margin: 48px auto;
+      padding: 0 24px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 20px rgba(0,0,0,0.07);
+      overflow: hidden;
+      margin-bottom: 24px;
+    }
+
+    .card-header {
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .step-badge {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 600; color: white;
+      flex-shrink: 0;
+    }
+    .card-header h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .card-body { padding: 24px; }
+
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--teal-mid);
+      background: #f0fafa;
+    }
+    .drop-zone input[type="file"] {
+      position: absolute; inset: 0;
+      opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .drop-zone .icon { font-size: 36px; margin-bottom: 10px; }
+    .drop-zone .label { font-size: 15px; color: var(--text-muted); }
+    .drop-zone .sublabel { font-size: 12px; color: #aaa; margin-top: 4px; }
+    .drop-zone.has-file { border-color: var(--green-light); background: #f1f8f1; }
+    .drop-zone.has-file .label { color: var(--green-mid); font-weight: 600; }
+
+    .file-list {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .file-tag {
+      background: #e8f5e9;
+      border: 1px solid var(--green-light);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 13px;
+      color: var(--green-dark);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .file-tag button {
+      background: none; border: none;
+      color: #e53935; cursor: pointer;
+      font-size: 15px; line-height: 1;
+      padding: 0;
+    }
+
+    .process-btn {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, var(--green-dark), var(--teal-dark));
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      font-family: 'Source Sans 3', sans-serif;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .process-btn:hover:not(:disabled) { opacity: 0.92; transform: translateY(-1px); }
+    .process-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .status-box {
+      display: none;
+      margin-top: 24px;
+      border-radius: 10px;
+      padding: 20px 24px;
+    }
+    .status-box.processing {
+      display: block;
+      background: #e8f4fd;
+      border: 1px solid #90caf9;
+    }
+    .status-box.success {
+      display: block;
+      background: #e8f5e9;
+      border: 1px solid var(--green-light);
+    }
+    .status-box.error {
+      display: block;
+      background: #ffebee;
+      border: 1px solid #ef9a9a;
+    }
+    .status-title {
+      font-weight: 600;
+      font-size: 15px;
+      margin-bottom: 10px;
+    }
+    .processing .status-title { color: #1565c0; }
+    .success .status-title { color: var(--green-dark); }
+    .error .status-title { color: #c62828; }
+
+    .result-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      padding: 4px 0;
+    }
+    .result-row .dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .dot.ok { background: var(--green-light); }
+    .dot.err { background: #ef5350; }
+
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid #90caf9;
+      border-top-color: #1565c0;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .download-btn {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 10px 22px;
+      background: var(--green-mid);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      font-family: 'Source Sans 3', sans-serif;
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .download-btn:hover { opacity: 0.88; }
+
+    footer {
+      text-align: center;
+      padding: 32px;
+      font-size: 12px;
+      color: #bbb;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    .card { animation: fadeIn 0.4s ease both; }
+    .card:nth-child(2) { animation-delay: 0.1s; }
+    .card:nth-child(3) { animation-delay: 0.2s; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-eyebrow">Affordable Housing Compliance</div>
+  <h1>Willow Glen</h1>
+  <p>1200 Cherry St, Central Point · Unit Certification Tracker</p>
+</header>
+
+<main>
+  <form id="mainForm">
+
+    <!-- Step 1 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="step-badge" style="background: var(--green-mid);">1</div>
+        <h2>Upload Your Excel Spreadsheet</h2>
+      </div>
+      <div class="card-body">
+        <div class="drop-zone" id="xlsxZone">
+          <input type="file" name="xlsx" accept=".xlsx" id="xlsxInput" />
+          <div class="icon">📊</div>
+          <div class="label" id="xlsxLabel">Click or drag your .xlsx file here</div>
+          <div class="sublabel">willow_glen_unit58.xlsx or most recent updated version</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="step-badge" style="background: var(--teal-mid);">2</div>
+        <h2>Upload New Tenant PDFs</h2>
+      </div>
+      <div class="card-body">
+        <div class="drop-zone" id="pdfZone">
+          <input type="file" name="pdfs" accept=".pdf" multiple id="pdfInput" />
+          <div class="icon">📄</div>
+          <div class="label">Click or drag PDF files here</div>
+          <div class="sublabel">You can upload multiple PDFs at once</div>
+        </div>
+        <div class="file-list" id="fileList"></div>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="card">
+      <div class="card-header">
+        <div class="step-badge" style="background: var(--purple-mid);">3</div>
+        <h2>Extract &amp; Download</h2>
+      </div>
+      <div class="card-body">
+        <button type="submit" class="process-btn" id="processBtn">
+          ✨ Extract Data &amp; Download Updated Excel
+        </button>
+
+        <div class="status-box processing" id="statusProcessing">
+          <div class="status-title"><span class="spinner"></span> Processing your PDFs with Claude AI…</div>
+          <div style="font-size:13px; color:#1565c0;">This may take 20–40 seconds per PDF. Please don't close this tab.</div>
+        </div>
+
+        <div class="status-box success" id="statusSuccess">
+          <div class="status-title">✅ Done! Your updated spreadsheet is ready.</div>
+          <div id="resultsList"></div>
+          <a href="#" class="download-btn" id="downloadBtn">⬇ Download Updated Excel</a>
+        </div>
+
+        <div class="status-box error" id="statusError">
+          <div class="status-title">❌ Something went wrong</div>
+          <div id="errorMsg" style="font-size:13px; color:#c62828;"></div>
+        </div>
+      </div>
+    </div>
+
+  </form>
+</main>
+
+<footer>Powered by Claude AI · Willow Glen Affordable Housing · Jackson County, OR</footer>
+
+<script>
+  // Excel file handling
+  const xlsxInput = document.getElementById('xlsxInput');
+  const xlsxZone = document.getElementById('xlsxZone');
+  const xlsxLabel = document.getElementById('xlsxLabel');
+
+  xlsxInput.addEventListener('change', () => {
+    if (xlsxInput.files[0]) {
+      xlsxLabel.textContent = '✓ ' + xlsxInput.files[0].name;
+      xlsxZone.classList.add('has-file');
+    }
+  });
+
+  // PDF file handling
+  const pdfInput = document.getElementById('pdfInput');
+  const pdfZone = document.getElementById('pdfZone');
+  const fileList = document.getElementById('fileList');
+  let pdfFiles = [];
+
+  pdfInput.addEventListener('change', () => {
+    const newFiles = Array.from(pdfInput.files);
+    newFiles.forEach(f => {
+      if (!pdfFiles.find(p => p.name === f.name)) pdfFiles.push(f);
+    });
+    renderFileList();
+  });
+
+  function renderFileList() {
+    fileList.innerHTML = '';
+    pdfFiles.forEach((f, i) => {
+      const tag = document.createElement('div');
+      tag.className = 'file-tag';
+      tag.innerHTML = `📄 ${f.name} <button type="button" onclick="removeFile(${i})">×</button>`;
+      fileList.appendChild(tag);
+    });
+    pdfZone.classList.toggle('has-file', pdfFiles.length > 0);
+  }
+
+  function removeFile(i) {
+    pdfFiles.splice(i, 1);
+    renderFileList();
+  }
+
+  // Drag over styling
+  [xlsxZone, pdfZone].forEach(zone => {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', () => zone.classList.remove('drag-over'));
+  });
+
+  // Form submission
+  let downloadUrl = null;
+
+  document.getElementById('mainForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const xlsxFile = xlsxInput.files[0];
+    if (!xlsxFile) { alert('Please upload your Excel file first.'); return; }
+    if (pdfFiles.length === 0) { alert('Please upload at least one PDF.'); return; }
+
+    // Show processing
+    document.getElementById('processBtn').disabled = true;
+    document.getElementById('statusProcessing').style.display = 'block';
+    document.getElementById('statusSuccess').style.display = 'none';
+    document.getElementById('statusError').style.display = 'none';
+
+    const formData = new FormData();
+    formData.append('xlsx', xlsxFile);
+    pdfFiles.forEach(f => formData.append('pdfs', f));
+
+    try {
+      const response = await fetch('/process', { method: 'POST', body: formData });
+
+      document.getElementById('statusProcessing').style.display = 'none';
+      document.getElementById('processBtn').disabled = false;
+
+      if (response.ok) {
+        const blob = await response.blob();
+        if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+        downloadUrl = URL.createObjectURL(blob);
+
+        const resultsHeader = response.headers.get('X-Results');
+        const results = resultsHeader ? JSON.parse(resultsHeader) : [];
+        const resultsList = document.getElementById('resultsList');
+        resultsList.innerHTML = results.map(r =>
+          `<div class="result-row">
+            <div class="dot ${r.status === 'success' ? 'ok' : 'err'}"></div>
+            <span>${r.filename} ${r.status === 'success' ? `→ Unit ${r.unit}: ${r.household}` : `— ${r.error}`}</span>
+          </div>`
+        ).join('');
+
+        document.getElementById('downloadBtn').href = downloadUrl;
+        document.getElementById('downloadBtn').download = 'willow_glen_updated.xlsx';
+        document.getElementById('statusSuccess').style.display = 'block';
+
+        // Reset for next batch
+        pdfFiles = [];
+        renderFileList();
+
+      } else {
+        const data = await response.json();
+        document.getElementById('errorMsg').textContent = data.error || 'Unknown error occurred.';
+        document.getElementById('statusError').style.display = 'block';
+      }
+    } catch (err) {
+      document.getElementById('statusProcessing').style.display = 'none';
+      document.getElementById('processBtn').disabled = false;
+      document.getElementById('errorMsg').textContent = 'Network error: ' + err.message;
+      document.getElementById('statusError').style.display = 'block';
+    }
+  });
+</script>
+</body>
+</html>
