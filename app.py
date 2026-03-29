@@ -3,6 +3,7 @@ import io
 import base64
 import datetime
 import json
+import traceback
 from copy import copy
 from flask import Flask, request, render_template, send_file, jsonify
 import anthropic
@@ -10,9 +11,7 @@ import openpyxl
 from openpyxl import load_workbook
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
-
-client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
 EXTRACT_PROMPT = """Extract rental certification data from this PDF and return ONLY a JSON object (no markdown, no explanation) with these exact keys:
 {
@@ -30,7 +29,14 @@ EXTRACT_PROMPT = """Extract rental certification data from this PDF and return O
   "lease_start_date": "MM/DD/YYYY",
   "security_deposit": ""
 }
-Return empty string for any field not found. For money fields include $ and commas (e.g. $1,234.56). For percentages include % (e.g. 60%). Lease end date is calculated automatically as 6 months after lease start. The property address is always 1200 Cherry St. Default bedrooms to 2, TC Income Level to 60%, TC Rent Level to 60% if not found."""
+Return empty string for any field not found. For money fields include $ and commas. For percentages include %. Default bedrooms to 2, TC Income Level to 60%, TC Rent Level to 60% if not found."""
+
+
+def get_client():
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise ValueError("ANTHROPIC_API_KEY environment variable is not set")
+    return anthropic.Anthropic(api_key=api_key)
 
 
 def add_months(dt, months):
@@ -42,7 +48,9 @@ def add_months(dt, months):
 
 
 def extract_from_pdf(pdf_bytes):
+    client = get_client()
     b64 = base64.standard_b64encode(pdf_bytes).decode("utf-8")
+    print(f"Sending PDF to Claude API ({len(pdf_bytes)} bytes)...")
     response = client.messages.create(
         model="claude-opus-4-5",
         max_tokens=1000,
@@ -58,6 +66,7 @@ def extract_from_pdf(pdf_bytes):
         }]
     )
     text = "".join(block.text for block in response.content if hasattr(block, "text"))
+    print(f"Claude response preview: {text[:300]}")
     clean = text.replace("```json", "").replace("```", "").strip()
     return json.loads(clean)
 
@@ -66,7 +75,6 @@ def update_excel(xlsx_bytes, extracted_rows):
     wb = load_workbook(io.BytesIO(xlsx_bytes))
     ws = wb.active
 
-    # Capture formatting from first data row (row 3)
     def get_fmt(cell):
         return {
             'font': copy(cell.font),
@@ -77,11 +85,8 @@ def update_excel(xlsx_bytes, extracted_rows):
         }
 
     ref_formats = {col: get_fmt(ws.cell(row=3, column=col)) for col in range(1, 18)}
-
-    # Collect existing data rows
     existing = [list(row) for row in ws.iter_rows(min_row=3, max_row=ws.max_row, values_only=True)]
 
-    # Build new rows from extracted data
     for r in extracted_rows:
         lease_start = None
         lease_end = None
@@ -113,10 +118,8 @@ def update_excel(xlsx_bytes, extracted_rows):
         ]
         existing.append(new_row)
 
-    # Sort by unit number
     existing.sort(key=lambda row: int(row[1]) if row[1] and str(row[1]).isdigit() else 9999)
 
-    # Delete old data rows and rewrite
     for row_idx in range(ws.max_row, 2, -1):
         ws.delete_rows(row_idx)
 
@@ -150,8 +153,14 @@ def index():
 @app.route("/process", methods=["POST"])
 def process():
     try:
+        print("=== /process called ===")
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
+        print(f"API key present: {bool(api_key)}, prefix: {api_key[:12] if api_key else 'NONE'}")
+
         xlsx_file = request.files.get("xlsx")
         pdf_files = request.files.getlist("pdfs")
+
+        print(f"Excel: {xlsx_file.filename if xlsx_file else 'None'}, PDFs: {len(pdf_files)}")
 
         if not xlsx_file:
             return jsonify({"error": "No Excel file uploaded"}), 400
@@ -163,6 +172,7 @@ def process():
         results = []
 
         for pdf in pdf_files:
+            print(f"Processing PDF: {pdf.filename}")
             pdf_bytes = pdf.read()
             try:
                 data = extract_from_pdf(pdf_bytes)
@@ -173,19 +183,20 @@ def process():
                     "unit": data.get("unit_number", "?"),
                     "household": data.get("household_name", "?"),
                 })
+                print(f"Extracted: Unit {data.get('unit_number')}, {data.get('household_name')}")
             except Exception as e:
+                err_detail = traceback.format_exc()
+                print(f"PDF ERROR: {err_detail}")
                 results.append({
                     "filename": pdf.filename,
                     "status": "error",
-                    "error": str(type(e).__name__) + ": " + str(e)
+                    "error": f"{type(e).__name__}: {str(e)}",
                 })
 
         if not extracted_rows:
-            return jsonify({"error": "No PDFs could be extracted", "results": results, "detail": str(results)}), 400
+            return jsonify({"error": "No PDFs could be extracted", "results": results}), 400
 
         updated_xlsx = update_excel(xlsx_bytes, extracted_rows)
-
-        # Store in memory and return as download
         response = send_file(
             updated_xlsx,
             mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -196,9 +207,11 @@ def process():
         return response
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        err_detail = traceback.format_exc()
+        print(f"FATAL ERROR: {err_detail}")
+        return jsonify({"error": f"{type(e).__name__}: {str(e)}"}), 500
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=True)
