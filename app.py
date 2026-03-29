@@ -177,7 +177,7 @@ def process():
                 results.append({
                     "filename": pdf.filename,
                     "status": "error",
-                    "error": str(e)
+                    "error": str(type(e).__name__) + ": " + str(e)
                 })
 
         if not extracted_rows:
