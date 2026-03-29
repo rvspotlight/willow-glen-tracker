@@ -181,7 +181,7 @@ def process():
                 })
 
         if not extracted_rows:
-            return jsonify({"error": "No PDFs could be extracted", "results": results}), 400
+            return jsonify({"error": "No PDFs could be extracted", "results": results, "detail": str(results)}), 400
 
         updated_xlsx = update_excel(xlsx_bytes, extracted_rows)
 
